@@ -1,11 +1,16 @@
-#include <Arduino.h>
 #include <LiquidCrystal.h>
-#include <avr/delay.h>
 
-volatile uint8_t h=12,min=5,s=0;	//ore, minute, secunde - initial
+volatile int h=12,min=5,s=0;	//ore, minute, secunde - initial
 volatile long int temp=0;
 
 LiquidCrystal LCD(12, 11, 5, 4, 3, 2);
+
+void timer1_setup_1s(){
+	TCCR1A=0;
+	TCCR1B=0X04|(1<<WGM12);
+	TIMSK1|=(1<<OCIE1A);
+	OCR1A=62500;
+}
 
 void adc_init()
 {
@@ -25,8 +30,31 @@ int read_adc(int channel)
   return ADCW; //read and return
 }
 
-void sec(){
-  _delay_ms(1000);
+void setup(){
+  cli();
+  timer1_setup_1s();
+  adc_init();
+  LCD.begin(16,2);
+  sei();
+}
+
+void loop(){
+  LCD.setCursor(0,0);
+  LCD.print("Temp: ");
+  LCD.print(temp);
+  LCD.print("C       ");
+  LCD.setCursor(0,1);
+  LCD.print("Ora: ");
+  LCD.print(h);
+  LCD.print(":");
+  LCD.print(min);
+  LCD.print(":");
+  LCD.print(s);
+  LCD.print("   ");
+}
+
+ISR(TIMER1_COMPA_vect){
+  sei();
   temp=read_adc(0);
   temp=(temp*488)/100-500;
   temp=temp/10;
@@ -38,28 +66,4 @@ void sec(){
   s=s%60;
   min=min%60;
   h=h%24;
-}
-
-int main(){
-  init();
-  cli();
-  adc_init();
-  sei();
-  LCD.begin(16,2);
-  while(1){
-    LCD.setCursor(0,0);
-    LCD.print("Temp: ");
-    LCD.print(temp);
-    LCD.print("C       ");
-    LCD.setCursor(0,1);
-    LCD.print("Ora: ");
-    LCD.print(h);
-    LCD.print(":");
-    LCD.print(min);
-    LCD.print(":");
-    LCD.print(s);
-    LCD.print("   ");
-    sec();
-  }
-  return 0;
 }
