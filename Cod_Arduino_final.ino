@@ -15,38 +15,38 @@
 #define LEFT_VAL 4
 #define SELECT_VAL 6
 
-#define MAIN 0
-#define TSET 1
-#define TINC 2
-#define TMENT 3
-#define TRAC 4
-#define KP 5
-#define KI 6
-#define KD 7
+#define STATE_MAIN 0
+#define STATE_TSET 1
+#define STATE_TINC 2
+#define STATE_TMENT 3
+#define STATE_TRAC 4
+#define STATE_KP 5
+#define STATE_KI 6
+#define STATE_KD 7
 
-#define TEMP_CAMERA 30
+#define TEMP_CAMERA 25
 
 #define INCALZIRE 0
 #define MENTINERE 1
 #define RACIRE 2
 
-#define KP_LOC 0
-#define KI_LOC 4
-#define KD_LOC 8
-#define TINC_LOC 12
-#define TMEN_LOC 13
-#define TRAC_LOC 14
-#define TSET_LOC 15
-#define INIT_FLAG 16
+#define KP_LOC 40
+#define KI_LOC 44
+#define KD_LOC 48
+#define TINC_LOC 52
+#define TMEN_LOC 53
+#define TRAC_LOC 54
+#define TSET_LOC 55
+#define INIT_FLAG 56
 
 #define INIT_CONST 'I'
 
 LiquidCrystal lcd( 8, 9, 4, 5, 6, 7 );
 
-volatile double kp,ki,kd,err=0,err_prec=0,I=0,D=0,Ts=0.02,temp=0;
+volatile double kp,ki,kd,err=0,err_prec=0,I=0,D=0,Ts=0.02,comanda=0,temp=0;
 volatile uint8_t sec=0,m=0,h=0,temp_set,tinc,trac,tmen,phase=0,setpoint;
 volatile unsigned long cnt=0,cnt_begin_phase=0;
-volatile uint8_t buton_prev=NO_BUTTON,buton=NO_BUTTON,state=MAIN;
+volatile uint8_t buton_prev=NO_BUTTON,buton=NO_BUTTON,state=STATE_MAIN;
 
 void timer1_ctc_20ms(){
   TCCR1B=(1<<WGM12)|(1<<CS11)|(1<<CS10);
@@ -69,19 +69,17 @@ void timer2_pwm(){
 void adc_init()
 {
   ADCSRA |= ((1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0));
-  ADCSRA |= (1 << ADEN); //enable ADC
+  ADCSRA |= (1 << ADEN);
   ADMUX |= (1 << REFS0);
-  ADCSRA |= (1 << ADSC); //ADC start conversion
+  ADCSRA |= (1 << ADSC);
 }
 
 uint16_t read_adc(int channel)
 {
   DDRC &= ~(1 << channel);
-  ADMUX &= ~7;
-  ADMUX |= (1<<channel);
-  ADCSRA |= (1 << ADSC); //start conversion
-  while (ADCSRA & (1 << ADSC)); //wait while adc conversion are not updated
-  return ADCW; //read and return
+  ADCSRA |= (1 << ADSC);
+  while (ADCSRA & (1 << ADSC));
+  return ADCW;
 }
 
 void regulator(){
@@ -91,14 +89,15 @@ void regulator(){
   I=I+err*Ts;
   D=(err-err_prec)/Ts;
   out=kp*err+ki*I+kd*D;
-  if(out>100) {
-    out=100;
+  comanda=out;
+  if(comanda>100) {
+    comanda=100;
   }
-  else if(out<0){
-    out=0;
+  else if(comanda<0){
+    comanda=0;
     I=0;
   }
-  set_pwm2_width(out);
+  set_pwm2_width(comanda);
   err_prec=err;
 }
 
@@ -162,7 +161,7 @@ void mod_tset(){
       _delay_ms(500);
     break;
     case LEFT: tset_temp=temp_set;
-    state=MAIN;
+    state=STATE_MAIN;
     break;
   }
 }
@@ -189,7 +188,7 @@ void mod_tincalz(){
     }
     break;
     case LEFT: tinc_temp=tinc;
-    state=MAIN;
+    state=STATE_MAIN;
     break;
   }
 }
@@ -216,7 +215,7 @@ void mod_tment(){
     }
     break;
     case LEFT: tmen_temp=tmen;
-    state=MAIN;
+    state=STATE_MAIN;
     break;
   }
 }
@@ -243,7 +242,7 @@ void mod_tracire(){
     }
     break;
     case LEFT: trac_temp=trac;
-    state=MAIN;
+    state=STATE_MAIN;
     break;
   }
 }
@@ -270,7 +269,7 @@ void mod_kp(){
     }
     break;
     case LEFT: kp_temp=kp;
-    state=MAIN;
+    state=STATE_MAIN;
     break;
   }
 }
@@ -297,7 +296,7 @@ void mod_ki(){
     }
     break;
     case LEFT: ki_temp=ki;
-    state=MAIN;
+    state=STATE_MAIN;
     break;
   }
 }
@@ -324,7 +323,7 @@ void mod_kd(){
     }
     break;
     case LEFT: kd_temp=kd;
-    state=MAIN;
+    state=STATE_MAIN;
     break;
   }
 }
@@ -351,7 +350,7 @@ void init_from_eeprom(){
   setpoint=temp_set;
 }
 
-void (*modes[8])(void)={mod_main,mod_tset,mod_tincalz,mod_tment,mod_tracire,mod_kp,mod_ki,mod_kd};  //function pointer array
+void (*modes[8])(void)={mod_main,mod_tset,mod_tincalz,mod_tment,mod_tracire,mod_kp,mod_ki,mod_kd};
 
 int main(){
   cli();
@@ -375,8 +374,8 @@ int main(){
     lcd.print("   ");
     modes[state]();
     if(buton_apasat()==RIGHT)
-    if(++state>KD){
-      state=MAIN;
+    if(++state>STATE_KD){
+      state=STATE_MAIN;
       buton_prev=buton;
     }
     Serial.print("Temperatura:");
@@ -390,6 +389,8 @@ int main(){
 
 ISR(TIMER1_COMPA_vect){
   regulator();
+  ADMUX &= ~7;
+  ADMUX |= 0;
   if(++cnt%50==0){
     unsigned long diff=(cnt-cnt_begin_phase)*Ts;
     if(++sec>=60){
@@ -421,4 +422,6 @@ ISR(TIMER1_COMPA_vect){
     }
   }
   detectie_buton();
+  ADMUX &= ~7;
+  ADMUX |= 2;
 }
